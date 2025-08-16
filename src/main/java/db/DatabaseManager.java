@@ -5,7 +5,9 @@ import util.DbUtil;
 
 import java.sql.*;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 public class DatabaseManager {
     public DatabaseManager() {
@@ -121,6 +123,57 @@ public class DatabaseManager {
             c.commit();
         } catch (SQLException e) {
             e.printStackTrace();
+        }
+    }
+
+    /* ===================== Concurrency: đọc 2 bảng song song ===================== */
+    public void showAllConcurrentlyFromTwoTables() {
+        // Sử dụng ExecutorService để đọc song song từ hai bảng
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        Callable<List<String[]>> readMain = () -> readTable("log_analysis", "log-analysis");
+        Callable<List<String[]>> readBatch = () -> readTable("logs_batch", "logs_batch");
+
+        try {
+            // Future là một đối tượng đại diện cho kết quả của một tác vụ bất đồng bộ
+            // Đọc song song từ hai bảng và kết hợp kết quả vào 1 danh sách duy nhất
+            Future<List<String[]>> f1 = executorService.submit(readMain);
+            Future<List<String[]>> f2 = executorService.submit(readBatch);
+            List<String[]> all = new ArrayList<>();
+            all.addAll(f1.get());
+            all.addAll(f2.get());
+
+            System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
+                    "ID", "Filename", "Word Count", "Keyword Count", "Processed At", "Source");
+            for (String[] r : all) {
+                System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
+                        r[0], r[1], r[2], r[3], r[4], r[5]);
+            }
+        }catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        } finally {
+            executorService.shutdown();
+        }
+    }
+
+    // Phương thức đọc từ bảng và trả về danh sách các bản ghi
+    private List<String[]> readTable(String table, String source) throws SQLException {
+        String sql = "SELECT id, filename, word_count, keyword_count, processed_at FROM " + table + " ORDER BY id";
+        try (Connection c = DbUtil.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<String[]> out = new ArrayList<>();
+            while (rs.next()) {
+                out.add(new String[]{
+                        String.valueOf(rs.getInt("id")),
+                        rs.getString("filename"),
+                        String.valueOf(rs.getInt("word_count")),
+                        String.valueOf(rs.getInt("keyword_count")),
+                        String.valueOf(rs.getTimestamp("processed_at")),
+                        source
+                });
+            }
+            return out;
         }
     }
 
