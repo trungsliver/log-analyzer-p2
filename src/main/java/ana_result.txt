@@ -1,4 +1,2 @@
-Filename             Word Count   Keyword Count   Processed At           
-log1.txt             30           2               2025-08-25T14:17:33.489718200
-log2.txt             22           2               2025-08-25T14:17:33.489718200
-log3.txt             16           1               2025-08-25T14:17:33.489718200
+Filename             Word Count   Keyword Count   Processed At             
+log_all.csv          2400         154             2025-08-25T16:40:13.331017700

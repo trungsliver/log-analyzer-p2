@@ -187,6 +187,12 @@ ID    Filename             Word Count   Keyword Count   Processed At            
 213   log1.txt             30           2               2025-08-25 14:17:33.0   log-analysis
 214   log2.txt             22           2               2025-08-25 14:17:33.0   log-analysis
 215   log3.txt             16           1               2025-08-25 14:17:33.0   log-analysis
+216   log1.txt             30           2               2025-08-25 15:28:51.0   log-analysis
+217   log2.txt             22           2               2025-08-25 15:28:51.0   log-analysis
+218   log3.txt             16           1               2025-08-25 15:28:51.0   log-analysis
+219   log1.txt             30           2               2025-08-25 15:30:55.0   log-analysis
+220   log2.txt             22           2               2025-08-25 15:30:55.0   log-analysis
+221   log3.txt             16           1               2025-08-25 15:30:55.0   log-analysis
 1     log_1.txt            854          5               2025-08-16 08:57:44.0   logs_batch  
 2     log_2.txt            761          3               2025-08-16 08:57:44.0   logs_batch  
 3     log_3.txt            750          5               2025-08-16 08:57:44.0   logs_batch  

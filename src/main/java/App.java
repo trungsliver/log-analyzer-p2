@@ -15,6 +15,8 @@ public class App {
             System.out.println("4. Cập nhật bản ghi (log_analysis)");
             System.out.println("5. Xóa bản ghi (log_analysis)");
             System.out.println("6. Ghi nhiều log (concurrency): DB (logs_batch) + file ./logs/");
+            System.out.println("7. Phân tích log (log_all.csv) bằng fixedThreadPool");
+            System.out.println("8. Phân tích log (log_all.csv) bằng ForkJoin");
             System.out.println("0. Thoát");
             System.out.print("Chọn: ");
 
@@ -56,6 +58,11 @@ public class App {
                     int n = Integer.parseInt(sc.nextLine().trim());
                     service.write100LogsConcurrently(n);
                 }
+                case "7" -> {
+                    System.out.println("Phân tích log (log_all.csv) bằng fixedThreadPool:");
+                    service.analyzeLargeLogWithThreadPool("fixed");
+                }
+
                 case "0" -> {
                     System.out.println("Bye!");
                     return;

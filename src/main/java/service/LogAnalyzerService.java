@@ -59,9 +59,9 @@ public class LogAnalyzerService {
     // Ghi kết quả phân tích vào file ana_result.txt
     private void writeResultsToFile(List<LogResult> results, String filePath) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("%-20s %-12s %-15s %-23s%n", "Filename", "Word Count", "Keyword Count", "Processed At"));
+        sb.append(String.format("%-20s %-12s %-15s %-25s%n", "Filename", "Word Count", "Keyword Count", "Processed At"));
         for (LogResult r : results) {
-            sb.append(String.format("%-20s %-12d %-15d %-23s%n",
+            sb.append(String.format("%-20s %-12d %-15d %-25s%n",
                     r.getFileName(), r.getWordCount(), r.getKeywordCount(), r.getProcessedAt()));
         }
         try {
@@ -139,4 +139,87 @@ public class LogAnalyzerService {
     public void showAll() { db.showAll(); }
     public void updateLog(int id, String filename, int wordCount, int keywordCount) { db.updateLog(id, filename, wordCount, keywordCount); }
     public void deleteLog(int id) { db.deleteLog(id); }
+
+    // Phân tích log_all.csv bằng FixedThreadPool, ghi tổng hợp ra file
+    public void analyzeLargeLogWithThreadPool(String path) {
+        // Đặt đường dẫn file log cần phân tích
+        path = "D:\\InternBE\\log-analyzer_p2\\src\\main\\resources\\logs\\log_all.csv";
+        List<String> lines;
+        try {
+            // Đọc toàn bộ nội dung file vào danh sách dòng
+            lines = Files.readAllLines(Paths.get(path));
+        } catch (IOException e) {
+            System.err.println("Không đọc được file: " + e.getMessage());
+            return;
+        }
+        // Kiểm tra file rỗng
+        if (lines.isEmpty()) {
+            System.out.println("File rỗng.");
+            return;
+        }
+
+        // Nếu có header thì bỏ qua dòng đầu
+        int startIdx = lines.get(0).toLowerCase().contains("timestamp") ? 1 : 0;
+        // Lấy danh sách dòng dữ liệu (bỏ qua header nếu có)
+        List<String> dataLines = lines.subList(startIdx, lines.size());
+
+        // Khởi tạo biến tổng số từ và tổng số keyword
+        int totalWordCount = 0;
+        int totalKeywordCount = 0;
+
+        // Tạo thread pool với số luồng bằng số CPU
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        ExecutorService pool = Executors.newFixedThreadPool(numThreads);
+
+        // Chia dữ liệu thành các batch cho từng luồng
+        int batchSize = (int) Math.ceil((double) dataLines.size() / numThreads);
+        List<Future<int[]>> futures = new ArrayList<>();
+
+        // Tạo và gửi task cho mỗi batch
+        for (int i = 0; i < numThreads; i++) {
+            int from = i * batchSize;
+            int to = Math.min(from + batchSize, dataLines.size());
+            if (from >= to) break;
+            List<String> batch = dataLines.subList(from, to);
+
+            // Tạo task cho mỗi batch: trả về mảng gồm tổng số từ và tổng số keyword của batch
+            Callable<int[]> task = () -> {
+                int wc = 0, kc = 0;
+                for (String line : batch) {
+                    wc += line.trim().isEmpty() ? 0 : line.trim().split("\\s+").length;
+                    kc += line.split("(?i)error", -1).length - 1;
+                }
+                return new int[]{wc, kc};
+            };
+            futures.add(pool.submit(task));
+        }
+
+        // Thu thập kết quả từ các luồng và cộng dồn vào tổng
+        for (Future<int[]> f : futures) {
+            try {
+                int[] res = f.get();
+                totalWordCount += res[0];
+                totalKeywordCount += res[1];
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Đóng thread pool
+        pool.shutdown();
+        try {
+            // Chờ tối đa 60 giây để tất cả các tác vụ hoàn thành
+            if (!pool.awaitTermination(60, TimeUnit.SECONDS)) {
+                pool.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            pool.shutdownNow();
+        }
+
+        // Tạo kết quả tổng hợp và ghi ra file ana_result.txt
+        List<LogResult> result = List.of(
+            new LogResult("log_all.csv", totalWordCount, totalKeywordCount, java.time.LocalDateTime.now())
+        );
+        writeResultsToFile(result, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\ana_result.txt");
+    }
 }
