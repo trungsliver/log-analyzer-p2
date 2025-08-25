@@ -7,7 +7,9 @@ import util.LogFileUtil;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +31,7 @@ public class LogAnalyzerService {
             // Lấy danh sách các file trong thư mục
             Files.list(Paths.get(folderPath))
                     .filter(Files::isRegularFile)
-                    .forEach(p -> futures.add(pool.submit(new FileReaderTask(p))));
+                    .forEach(p -> futures.add(pool.submit(new thread.FileReaderTask(p))));
         } catch (IOException e) {
             System.err.println("Không đọc được thư mục: " + e.getMessage());
         }
@@ -49,6 +51,25 @@ public class LogAnalyzerService {
         // Lưu batch với Transaction vào bảng log_analysis
         db.saveBatch(results, "log_analysis");
         System.out.println("✅ Đã phân tích " + results.size() + " file và lưu DB (log_analysis).");
+
+        // Ghi toàn bộ kết quả vào file ana_result.txt
+        writeResultsToFile(results, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\ana_result.txt");
+    }
+
+    // Ghi kết quả phân tích vào file ana_result.txt
+    private void writeResultsToFile(List<LogResult> results, String filePath) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%-20s %-12s %-15s %-23s%n", "Filename", "Word Count", "Keyword Count", "Processed At"));
+        for (LogResult r : results) {
+            sb.append(String.format("%-20s %-12d %-15d %-23s%n",
+                    r.getFileName(), r.getWordCount(), r.getKeywordCount(), r.getProcessedAt()));
+        }
+        try {
+            Files.write(Path.of(filePath), sb.toString().getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+            System.out.println("📄 Đã ghi kết quả vào file ana_result.txt");
+        } catch (IOException e) {
+            System.err.println("Lỗi ghi file ana_result.txt: " + e.getMessage());
+        }
     }
 
     /* ============= Concurrency: ghi 100 file + DB song song ============= */

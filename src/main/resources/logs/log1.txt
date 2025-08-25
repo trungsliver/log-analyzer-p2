@@ -1,0 +1,5 @@
+2024-06-01 10:00:00 INFO Application started
+2024-06-01 10:01:00 ERROR Failed to connect to database
+2024-06-01 10:02:00 WARN Low memory
+2024-06-01 10:03:00 error Disk not found
+2024-06-01 10:04:00 INFO User logged in

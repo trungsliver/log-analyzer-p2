@@ -123,12 +123,20 @@ public class DatabaseManager {
             c.commit();
         } catch (SQLException e) {
             e.printStackTrace();
+            try{
+                if (e.getSQLState().startsWith("23")) { // mã lỗi vi phạm ràng buộc
+                    System.err.println("Lỗi vi phạm ràng buộc dữ liệu, rollback giao dịch.");
+                }
+                DbUtil.getConnection().rollback();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
         }
     }
 
     /* ===================== Concurrency: đọc 2 bảng song song ===================== */
     public void showAllConcurrentlyFromTwoTables() {
-        // Sử dụng ExecutorService để đọc song song từ hai bảng
+        // Sử dụng ExecutorService để đọc song song từ hai bảng (concurrency)
         ExecutorService executorService = Executors.newFixedThreadPool(2);
 
         Callable<List<String[]>> readMain = () -> readTable("log_analysis", "log-analysis");
@@ -149,6 +157,30 @@ public class DatabaseManager {
                 System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
                         r[0], r[1], r[2], r[3], r[4], r[5]);
             }
+
+            // Sử dụng concurrency để ghi kết quả ra file read_result.txt
+            ExecutorService writeExecutor = Executors.newSingleThreadExecutor();
+            writeExecutor.submit(() -> {
+                StringBuilder sb = new StringBuilder();
+                sb.append(String.format("%-5s %-20s %-12s %-15s %-23s %-12s%n",
+                        "ID", "Filename", "Word Count", "Keyword Count", "Processed At", "Source"));
+                for (String[] r : all) {
+                    sb.append(String.format("%-5s %-20s %-12s %-15s %-23s %-12s%n",
+                            r[0], r[1], r[2], r[3], r[4], r[5]));
+                }
+                try {
+                    java.nio.file.Files.write(
+                        java.nio.file.Path.of("D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\read_result.txt"),
+                        sb.toString().getBytes(),
+                        java.nio.file.StandardOpenOption.CREATE,
+                        java.nio.file.StandardOpenOption.TRUNCATE_EXISTING
+                    );
+                    System.out.println("📄 Đã ghi kết quả vào file read_result.txt (concurrent).");
+                } catch (Exception e) {
+                    System.err.println("Lỗi ghi file read_result.txt: " + e.getMessage());
+                }
+            });
+            writeExecutor.shutdown();
         }catch (InterruptedException | ExecutionException e) {
             e.printStackTrace();
         } finally {

@@ -1,0 +1,3 @@
+2024-06-01 12:00:00 INFO System check
+2024-06-01 12:01:00 INFO All services running
+2024-06-01 12:02:00 ERROR Service crashed
