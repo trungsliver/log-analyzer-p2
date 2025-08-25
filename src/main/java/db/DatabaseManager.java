@@ -110,26 +110,49 @@ public class DatabaseManager {
     /* ===================== Batch + Transaction ===================== */
     public void saveBatch(List<LogResult> results, String table) {
         String sql = "INSERT INTO " + table + " (filename, word_count, keyword_count, processed_at) VALUES (?,?,?,?)";
-        try (Connection c = DbUtil.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
-            c.setAutoCommit(false);
+        final int BATCH_SIZE = 50;
+        Connection c = null;
+        PreparedStatement ps = null;
+        try {
+            c = DbUtil.getConnection();
+            c.setAutoCommit(false); // bắt đầu transaction
+            ps = c.prepareStatement(sql);
+
+            int count = 0;
             for (LogResult r : results) {
                 ps.setString(1, r.getFileName());
                 ps.setInt(2, r.getWordCount());
                 ps.setInt(3, r.getKeywordCount());
                 ps.setTimestamp(4, Timestamp.valueOf(r.getProcessedAt()));
                 ps.addBatch();
+                count++;
+
+                // Nếu đủ batch hoặc là bản ghi cuối cùng thì thực thi batch
+                if (count % BATCH_SIZE == 0 || count == results.size()) {
+                    System.out.println("Thực thi batch, số bản ghi: " + count);
+                    ps.executeBatch();
+                    ps.clearBatch();
+                }
             }
-            ps.executeBatch();
-            c.commit();
+
+            c.commit(); // commit toàn bộ transaction nếu không có lỗi
         } catch (SQLException e) {
             e.printStackTrace();
-            try{
-                if (e.getSQLState().startsWith("23")) { // mã lỗi vi phạm ràng buộc
-                    System.err.println("Lỗi vi phạm ràng buộc dữ liệu, rollback giao dịch.");
+            try {
+                if (c != null) {
+                    c.rollback(); // rollback toàn bộ nếu có lỗi
+                    System.err.println("Lỗi khi lưu batch, đã rollback transaction.");
                 }
-                DbUtil.getConnection().rollback();
             } catch (SQLException ex) {
                 ex.printStackTrace();
+            }
+        } finally {
+            try {
+                if (ps != null) ps.close();
+                if (c != null) c.setAutoCommit(true);
+                if (c != null) c.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
         }
     }

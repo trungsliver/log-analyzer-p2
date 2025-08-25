@@ -93,20 +93,29 @@ public class LogAnalyzerService {
         };
 
         Callable<Void> fileTask = () -> {
-            for (LogResult r : records) {
-                String content = """
-                        Filename: %s
-                        Word Count: %d
-                        Keyword Count: %d
-                        Processed At: %s
-                        """.formatted(r.getFileName(), r.getWordCount(), r.getKeywordCount(), r.getProcessedAt());
-                try {
-                    LogFileUtil.writeFile("logs", r.getFileName(), content);
-                } catch (IOException e) {
-                    System.err.println("Lỗi ghi file " + r.getFileName() + ": " + e.getMessage());
+            // Transaction cho ghi file: nếu lỗi, xóa toàn bộ file đã ghi trước đó
+            List<Path> writtenFiles = new ArrayList<>();
+            try {
+                for (LogResult r : records) {
+                    String content = """
+                            Filename: %s
+                            Word Count: %d
+                            Keyword Count: %d
+                            Processed At: %s
+                            """.formatted(r.getFileName(), r.getWordCount(), r.getKeywordCount(), r.getProcessedAt());
+                    Path filePath = Path.of("logs", r.getFileName());
+                    util.LogFileUtil.ensureFolderExists("logs");
+                    Files.write(filePath, content.getBytes());
+                    writtenFiles.add(filePath);
                 }
+                System.out.println("📄 Đã ghi " + N + " file vào thư mục ./logs/ (transaction OK)");
+            } catch (IOException e) {
+                // Rollback: xóa toàn bộ file đã ghi trước đó
+                for (Path p : writtenFiles) {
+                    try { Files.deleteIfExists(p); } catch (IOException ex) { /* ignore */ }
+                }
+                System.err.println("Lỗi ghi file, đã rollback toàn bộ file đã ghi trước đó: " + e.getMessage());
             }
-            System.out.println("📄 Đã ghi " + N + " file vào thư mục ./logs/");
             return null;
         };
 
