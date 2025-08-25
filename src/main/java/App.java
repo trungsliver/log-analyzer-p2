@@ -59,10 +59,15 @@ public class App {
                     service.write100LogsConcurrently(n);
                 }
                 case "7" -> {
+                    // fixedThreadPool dùng trong trường hợp file log < 1M lines
                     System.out.println("Phân tích log (log_all.csv) bằng fixedThreadPool:");
                     service.analyzeLargeLogWithThreadPool("fixed");
                 }
-
+                case "8" -> {
+                    //  forkJoin dùng trong trường hợp file log > 1M lines
+                    System.out.println("Phân tích log (log_all.csv) bằng ForkJoin:");
+                    service.analyzeLargeLogWithForkJoin("forkjoin");
+                }
                 case "0" -> {
                     System.out.println("Bye!");
                     return;

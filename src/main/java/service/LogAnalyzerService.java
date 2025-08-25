@@ -53,7 +53,7 @@ public class LogAnalyzerService {
         System.out.println("✅ Đã phân tích " + results.size() + " file và lưu DB (log_analysis).");
 
         // Ghi toàn bộ kết quả vào file ana_result.txt
-        writeResultsToFile(results, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\ana_result.txt");
+        writeResultsToFile(results, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\log_result\\ana_result.txt");
     }
 
     // Ghi kết quả phân tích vào file ana_result.txt
@@ -66,9 +66,9 @@ public class LogAnalyzerService {
         }
         try {
             Files.write(Path.of(filePath), sb.toString().getBytes(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            System.out.println("📄 Đã ghi kết quả vào file ana_result.txt");
+            System.out.println("📄 Đã ghi kết quả vào file txt");
         } catch (IOException e) {
-            System.err.println("Lỗi ghi file ana_result.txt: " + e.getMessage());
+            System.err.println("Lỗi ghi file txt: " + e.getMessage());
         }
     }
 
@@ -149,6 +149,7 @@ public class LogAnalyzerService {
             // Đọc toàn bộ nội dung file vào danh sách dòng
             lines = Files.readAllLines(Paths.get(path));
         } catch (IOException e) {
+            // Nếu có lỗi khi đọc file, in ra lỗi và kết thúc hàm
             System.err.println("Không đọc được file: " + e.getMessage());
             return;
         }
@@ -186,8 +187,8 @@ public class LogAnalyzerService {
             Callable<int[]> task = () -> {
                 int wc = 0, kc = 0;
                 for (String line : batch) {
-                    wc += line.trim().isEmpty() ? 0 : line.trim().split("\\s+").length;
-                    kc += line.split("(?i)error", -1).length - 1;
+                    wc += line.trim().isEmpty() ? 0 : line.trim().split("\\s+").length; // Đếm số từ
+                    kc += line.split("(?i)error", -1).length - 1; // Đếm số lần xuất hiện "error"
                 }
                 return new int[]{wc, kc};
             };
@@ -201,6 +202,7 @@ public class LogAnalyzerService {
                 totalWordCount += res[0];
                 totalKeywordCount += res[1];
             } catch (InterruptedException | ExecutionException e) {
+                // Nếu có lỗi khi lấy kết quả, in ra lỗi
                 e.printStackTrace();
             }
         }
@@ -220,6 +222,82 @@ public class LogAnalyzerService {
         List<LogResult> result = List.of(
             new LogResult("log_all.csv", totalWordCount, totalKeywordCount, java.time.LocalDateTime.now())
         );
-        writeResultsToFile(result, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\ana_result.txt");
+        writeResultsToFile(result, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\log_result\\log_result_fixedThreadPool.txt");
+    }
+
+    // Phân tích log_all.csv bằng ForkJoinPool, ghi tổng hợp ra file
+    public void analyzeLargeLogWithForkJoin(String path) {
+        // Đặt đường dẫn file log cần phân tích
+        path = "D:\\InternBE\\log-analyzer_p2\\src\\main\\resources\\logs\\log_all.csv";
+        List<String> lines;
+        try {
+            // Đọc toàn bộ nội dung file vào danh sách dòng
+            lines = Files.readAllLines(Paths.get(path));
+        } catch (IOException e) {
+            // Nếu có lỗi khi đọc file, in ra lỗi và kết thúc hàm
+            System.err.println("Không đọc được file: " + e.getMessage());
+            return;
+        }
+        // Kiểm tra file rỗng
+        if (lines.isEmpty()) {
+            System.out.println("File rỗng.");
+            return;
+        }
+
+        // Nếu có header thì bỏ qua dòng đầu
+        int startIdx = lines.get(0).toLowerCase().contains("timestamp") ? 1 : 0;
+        List<String> dataLines = lines.subList(startIdx, lines.size());
+
+        // Sử dụng ForkJoinPool để phân tích
+        ForkJoinPool pool = new ForkJoinPool();
+        LogAnalyzeForkTask task = new LogAnalyzeForkTask(dataLines, 0, dataLines.size());
+        int[] resultArr = pool.invoke(task); // Kết quả: [tổng số từ, tổng số keyword]
+        pool.shutdown();
+
+        int totalWordCount = resultArr[0];
+        int totalKeywordCount = resultArr[1];
+
+        // Tạo kết quả tổng hợp và ghi ra file ana_result.txt
+        List<LogResult> result = List.of(
+            new LogResult("log_all.csv", totalWordCount, totalKeywordCount, java.time.LocalDateTime.now())
+        );
+        writeResultsToFile(result, "D:\\InternBE\\log-analyzer_p2\\src\\main\\java\\log_result\\log_result_forkJoin.txt");
+    }
+
+    // Task cho ForkJoinPool: phân tích một đoạn của danh sách dòng
+    private static class LogAnalyzeForkTask extends RecursiveTask<int[]> {
+        private static final int THRESHOLD = 500; // ngưỡng chia nhỏ
+        private final List<String> lines;
+        private final int start, end;
+
+        LogAnalyzeForkTask(List<String> lines, int start, int end) {
+            this.lines = lines;
+            this.start = start;
+            this.end = end;
+        }
+
+        @Override
+        protected int[] compute() {
+            // Nếu số dòng nhỏ hơn ngưỡng, xử lý trực tiếp
+            if (end - start <= THRESHOLD) {
+                int wc = 0, kc = 0;
+                for (int i = start; i < end; i++) {
+                    String line = lines.get(i);
+                    wc += line.trim().isEmpty() ? 0 : line.trim().split("\\s+").length; // Đếm số từ
+                    kc += line.split("(?i)error", -1).length - 1; // Đếm số lần xuất hiện "error"
+                }
+                return new int[]{wc, kc};
+            } else {
+                // Nếu số dòng lớn, chia đôi và xử lý song song
+                int mid = (start + end) / 2;
+                LogAnalyzeForkTask left = new LogAnalyzeForkTask(lines, start, mid);
+                LogAnalyzeForkTask right = new LogAnalyzeForkTask(lines, mid, end);
+                left.fork(); // chạy nhánh trái song song
+                int[] rightRes = right.compute(); // xử lý nhánh phải
+                int[] leftRes = left.join(); // lấy kết quả nhánh trái
+                // Cộng kết quả hai nhánh
+                return new int[]{leftRes[0] + rightRes[0], leftRes[1] + rightRes[1]};
+            }
+        }
     }
 }

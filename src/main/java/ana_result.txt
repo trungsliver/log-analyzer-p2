@@ -1,2 +1,0 @@
-Filename             Word Count   Keyword Count   Processed At             
-log_all.csv          2400         154             2025-08-25T16:40:13.331017700
