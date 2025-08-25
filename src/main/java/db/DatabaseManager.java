@@ -166,19 +166,38 @@ public class DatabaseManager {
         Callable<List<String[]>> readBatch = () -> readTable("logs_batch", "logs_batch");
 
         try {
-            // Future là một đối tượng đại diện cho kết quả của một tác vụ bất đồng bộ
-            // Đọc song song từ hai bảng và kết hợp kết quả vào 1 danh sách duy nhất
             Future<List<String[]>> f1 = executorService.submit(readMain);
             Future<List<String[]>> f2 = executorService.submit(readBatch);
             List<String[]> all = new ArrayList<>();
             all.addAll(f1.get());
             all.addAll(f2.get());
 
+            // Phân trang khi in ra console
+            final int PAGE_SIZE = 20;
+            int total = all.size();
+            int page = 0;
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+
             System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
                     "ID", "Filename", "Word Count", "Keyword Count", "Processed At", "Source");
-            for (String[] r : all) {
-                System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
-                        r[0], r[1], r[2], r[3], r[4], r[5]);
+
+            while (page * PAGE_SIZE < total) {
+                int start = page * PAGE_SIZE;
+                int end = Math.min(start + PAGE_SIZE, total);
+                for (int i = start; i < end; i++) {
+                    String[] r = all.get(i);
+                    System.out.printf("%-5s %-20s %-12s %-15s %-23s %-12s%n",
+                            r[0], r[1], r[2], r[3], r[4], r[5]);
+                }
+                page++;
+                if (end < total) {
+                    System.out.print("Nhấn Enter để xem trang tiếp theo hoặc nhập 'q' để thoát ra menu: ");
+                    String input = scanner.nextLine();
+                    if (input.trim().equalsIgnoreCase("q")) {
+                        System.out.println("Đã thoát xem kết quả.");
+                        break;
+                    }
+                }
             }
 
             // Sử dụng concurrency để ghi kết quả ra file read_result.txt
